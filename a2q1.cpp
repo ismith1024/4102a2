@@ -7,9 +7,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define WARPED_XSIZE 200
-#define WARPED_YSIZE 300
-
 ///////////
 ////
 //// Usage notes: requires c++14
@@ -72,32 +69,36 @@ int main(int argc, char* argv[]) {
         exit(-1);
     }
     
+    ImageClassifier* classifier;
+    
+    try{
+        classifier = new ImageClassifier();
+    } catch(const char* e){
+        std::cout << "Unable to open 40 or 80 km/h training signs" << std::endl;
+        exit(-1);        
+    }    
+    
     std::string filename = argv[1];
     std::cout << "Attempting to classify sign in image " << filename << std::endl;
+
+    /// Load source image and convert it to gray
+    auto src = cv::imread(filename, 1);    
+    cv::Mat target;
+    int res = classifier->prepare(src, target);
     
-    int sign_recog_result = NO_MATCH;
-    auto speed_40 = cv::imread("speed_40.bmp", 0);
-    auto speed_80 = cv::imread("speed_80.bmp", 0);
+    //int sign_recog_result = NO_MATCH;
+    //Classifier classifies the image and returns a SignType result
+    SignType result = classifier->classifySign(target);
+    std::string final_sign_output_name = "Result--" + filename;
 
-    std::string final_sign_output_name = "OUT_" + filename;
-
-	/// Load source image and convert it to gray
-    auto src = cv::imread(filename, 1);
-
-	/// Convert image to gray and blur it
-	//cvtColor(src, src_gray, COLOR_BGR2GRAY);
-	//blur(src_gray, src_gray, Size(5, 5));
-	//warped_result = Mat(Size(WARPED_XSIZE, WARPED_YSIZE), src_gray.type());
-
-	// here you add the code to do the recognition, and set the variable 
-	// sign_recog_result to one of STOP_SIGN, SPEED_LIMIT_40_SIGN, SPEED_LIMIT_80_SIGN, or NO_MATCH
-
-    std::string text = "Hi";
-	//if (sign_recog_result == SPEED_LIMIT_40_SIGN) text = "Speed 40";
-	//else if (sign_recog_result == SPEED_LIMIT_80_SIGN) text = "Speed 80";
-	//else if (sign_recog_result == STOP_SIGN) text = "Stop";
-	//else if (sign_recog_result == NO_MATCH) text = "Fail";
-
+    std::string text;// = "Hi";
+    switch(result){
+        case NO_MATCH: text = "Fail"; break;
+        case STOP_SIGN: text = "Stop sign"; break;
+        case SPEED_LIMIT_40_SIGN: text = "Speed 40"; break;
+        case SPEED_LIMIT_80_SIGN: text = "Speed 80"; break;
+        default: text = "Fail";        
+    }
     
     //Define the font for output window
     int fontFace = cv::FONT_HERSHEY_SCRIPT_SIMPLEX;
@@ -109,10 +110,12 @@ int main(int argc, char* argv[]) {
     // Create output window
     const char* source_window = "Result";
     cv::namedWindow(source_window, cv::WINDOW_AUTOSIZE);
-    cv::imshow(source_window, src);
+    cv::imshow(source_window, target); //src
     cv::imwrite(final_sign_output_name, src);
 
     cv::waitKey(0);
+    
+    delete classifier;
 
     return(0);
 }

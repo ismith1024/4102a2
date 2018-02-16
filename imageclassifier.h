@@ -1,6 +1,11 @@
+#ifndef IMCLASS_H
+#define IMCLASS_H
+
+#include "opencv2/core/core.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/calib3d/calib3d.hpp"
-#include "opencv2/opencv.hpp"
-//#include<vector>
+#include<vector>
 #include<iostream>
 #include<fstream>
 
@@ -11,15 +16,23 @@ enum SignType{
     SPEED_LIMIT_80_SIGN     
 };
 
+
+
 class ImageClassifier{
+
+    static const int WARPED_XSIZE = 200;
+    static const int WARPED_YSIZE = 300;
     
 private:
-    static cv::Mat speed_80;
-    static cv::Mat speed_40;    
+    cv::Mat speed_80;
+    cv::Mat speed_40;
 
 public:
     ImageClassifier();
     ~ImageClassifier();
-    SignType classifySign(cv::Mat);
+    int prepare(cv::Mat&, cv::Mat&);
+    SignType classifySign(cv::Mat&);
     
 };
+
+#endif // IMCLASS_H

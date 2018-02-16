@@ -6,9 +6,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define WARPED_XSIZE 200
+/*#define WARPED_XSIZE 200
 #define WARPED_YSIZE 300
-
+*/
 using namespace cv;
 using namespace std;
 
