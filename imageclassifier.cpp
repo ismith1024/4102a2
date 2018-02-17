@@ -22,9 +22,9 @@ ImageClassifier::~ImageClassifier(){
 int ImageClassifier::prepare(cv::Mat& src, cv::Mat& target){
     cv::Mat src_gray;
     cv::cvtColor(src, src_gray, cv::COLOR_BGR2GRAY);
-    cv::blur(src_gray, /*src_gray*/target, cv::Size(5, 5));
+    cv::blur(src_gray, target, cv::Size(5, 5));
     //cv::Mat warped_result = cv::Mat(cv::Size(WARPED_XSIZE, WARPED_YSIZE), src_gray.type());
-
+    
     return 0;
 }
 
@@ -35,44 +35,58 @@ int ImageClassifier::prepare(cv::Mat& src, cv::Mat& target){
 /// Finds the closest match among stop sign, speed 40, speed 80 
 ///
 SignType ImageClassifier::classifySign(cv::Mat& theSign){
-   
+    SignType ret = NO_MATCH;
 
     //To do this you should use the routines Canny, findContours, and approxPolyDP. 
     
     //find Canny edges
     const int canny_thresh = 120;  //where canny_thresh is set to 120
+    const float canny_mult = 2.0;
     cv::Mat detEdges;
-    cv::Canny(theSign, detEdges, canny_thresh, (2 * canny_thresh), 3); 
+    cv::Canny(theSign, detEdges, canny_thresh, (canny_mult * canny_thresh), 3); 
     
     //find contours
     std::vector<std::vector<cv::Point>> contours;
-    //cv::MatVector contours;
     std::vector<cv::Vec4i> hierarchy;
     cv::findContours(detEdges, contours, hierarchy, cv::RETR_LIST, cv::CHAIN_APPROX_SIMPLE, cv::Point(0, 0));
     
     //Fit polygons to the contours    
     std::vector<std::vector<cv::Point>> polygons;
-    //cv::MatVector polygons;
-    
-    //std::cout << "Found " << contours.size() << " contours." << std::endl;
-    //int i = -1;
     
     for(auto& e1: contours){
-        //std::cout << "Contour #" << ++i << ": " << e1.size() << " points" << std::endl;
         std::vector<cv::Point> polygon;
-        cv::approxPolyDP(e1, polygon, (e1.size() * .008), true);
-        polygons.push_back(polygon);
+        std::vector<cv::Point> convexHull;
+        const float epsilon = 0.001;
+        cv::approxPolyDP(e1, polygon, (epsilon * e1.size()), true); //0.008
+        cv::convexHull(polygon, convexHull);
+        polygons.push_back(convexHull);
     }
     
     std::cout << "Polygons detected: " << polygons.size() << std::endl;
-    /*for(auto& e1: polygons){
-        for(auto& e2: e1){
-            std::cout << "Point: " << e2 << std::endl;
-        }        
-    }*/
     
-    //These are the parameter values which worked for me so you can use them if you want, but you do not need to use them. 
-//The second part of the program will use the routines 
+    //sort the polygons by area -- the sign is likely to be one of the largest contours
+    sort(polygons.begin(), polygons.end(), [](const std::vector<cv::Point>& a, const std::vector<cv::Point>& b) -> bool{ 
+        return cv::contourArea(a) > cv::contourArea(b); 
+    });
+    
+    const int searchSize = 3;
+    std::vector<cv::Point> bigHull;
+    std::vector<cv::Point> allPoints;
+    //check the corners of the polygons from largest to smallest.  If the largest is an octagon, return STOP_SIGN
+    for(auto it = polygons.begin(); it != (polygons.begin() + searchSize) && it != polygons.end(); ++it){ 
+        for(auto& e1: *it) allPoints.push_back(e1);
+        std::cout << it->size() << std::endl;
+        if(/*e1.*/it->size() == 8) {
+            ret = STOP_SIGN;
+            return ret;
+        }
+        //else if(/*e1*/it->size() == 4) break;
+    }
+    
+    cv::convexHull(allPoints, bigHull);
+    polygons.insert(polygons.begin(), bigHull);
+    
+        //cv::Mat warped_result = cv::Mat(cv::Size(WARPED_XSIZE, WARPED_YSIZE), src_gray.type());
 
     //getPerspectiveTransform
     //warpPerspective along with images speed_40.bmp, and speed_80.bmp to tell the type of speed limit sign
@@ -80,10 +94,24 @@ SignType ImageClassifier::classifySign(cv::Mat& theSign){
     
     //Finally the routine matchtemplate( , , cv2.TM_CCOEFF_NORMED) is the best way to compare the stored template (from the .bmp files) for the 80/40 speed limit signs and the warped input sub-image.
     
-   
+    ///////////////    
+    /// Draw the polygons to help visualize what the classifier is doing
+    //ref: https://docs.opencv.org/2.4/doc/tutorials/imgproc/shapedescriptors/find_contours/find_contours.html
+    cv::Mat drawing = cv::Mat::zeros(theSign.size(), CV_8UC3);
     
+    cv::RNG rng(12345);    
+    for( int i = 0; i < searchSize+1/*contours.size()*/; i++ ){
+       cv::Scalar color = cv::Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
+       drawContours( drawing, polygons, i, color, 2, 8, hierarchy, 0, cv::Point() );
+    }
     
-    return NO_MATCH;
+
+    /// Show in a window
+    cv::namedWindow( "Contours", CV_WINDOW_AUTOSIZE );
+    cv::imshow( "Contours", drawing );
+    cv::waitKey(0);
+    
+    return ret;
 }
 
 

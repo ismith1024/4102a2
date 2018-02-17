@@ -57,15 +57,16 @@ have produced, one for each of the seven test cases.*/
 
 int main(int argc, char* argv[]) {
     
-    //cv::Mat src; 
-    cv::Mat src_gray;
+    cv::Mat src; 
+    //cv::Mat src_gray;
     cv::Mat warped_result;
+    cv::Mat target;
     //cv::Mat speed_80, speed_40;
     int canny_thresh = 120;
     
     
     if(argc < 2){
-        std::cout << "Usage: ./a2q1 <filename.jpg>" << std::endl;
+        std::cout << "Usage: ./a2q1 <filename>" << std::endl;
         exit(-1);
     }
     
@@ -82,9 +83,14 @@ int main(int argc, char* argv[]) {
     std::cout << "Attempting to classify sign in image " << filename << std::endl;
 
     /// Load source image and convert it to gray
-    auto src = cv::imread(filename, 1);    
-    cv::Mat target;
+    src = cv::imread(filename, 1);    
     int res = classifier->prepare(src, target);
+    
+        // Create output window
+    //const char* source_window1 = "Prepared";
+    //cv::namedWindow(source_window1, cv::WINDOW_AUTOSIZE);
+    //cv::imshow(source_window1, target); //src
+    //cv::waitKey(0);
     
     //int sign_recog_result = NO_MATCH;
     //Classifier classifies the image and returns a SignType result
@@ -110,8 +116,8 @@ int main(int argc, char* argv[]) {
     // Create output window
     const char* source_window = "Result";
     cv::namedWindow(source_window, cv::WINDOW_AUTOSIZE);
-    cv::imshow(source_window, target); //src
-    cv::imwrite(final_sign_output_name, src);
+    cv::imshow(source_window, src); //src
+    //cv::imwrite(final_sign_output_name, src);
 
     cv::waitKey(0);
     
