@@ -97,7 +97,7 @@ int main(int argc, char* argv[]) {
     SignType result = classifier->classifySign(target);
     std::string final_sign_output_name = "Result--" + filename;
 
-    std::string text;// = "Hi";
+    std::string text;
     switch(result){
         case NO_MATCH: text = "Fail"; break;
         case STOP_SIGN: text = "Stop sign"; break;
