@@ -1,5 +1,10 @@
 #include"imageclassifier.h"
 
+///perspectivetransform points order:
+// Top left 
+// Bottom left
+// Bottom bottom 
+// Top right 
 
 ImageClassifier::ImageClassifier(){
     speed_80 = cv::imread("speed_80.bmp", 0);
@@ -26,6 +31,7 @@ int ImageClassifier::prepare(cv::Mat& src, cv::Mat& target){
     cv::Mat src_gray;
     cv::Mat thresh;
     cv::cvtColor(src, src_gray, cv::COLOR_BGR2GRAY);
+    std::cout << src_gray.type() <<std::endl;
     cv::threshold(src_gray, thresh, thr, maxVal,cv::THRESH_BINARY);
     cv::blur(/*src_gray*/ thresh, target, cv::Size(5, 5));
     //cv::threshold(target, targ2, 60, 255, cv::THRESH_BINARY);//[1];
@@ -143,19 +149,54 @@ SignType ImageClassifier::classifySign(cv::Mat& theSign){
         //check the n largest polygons with four sides
         for(auto it = polygons.begin(); it != polygons.end() && it != (polygons.begin() + searchSize); ++it){
             if(it->size() == 4){
+                               
+                //vector to hold the four points of the skewed image
+                //need to add the points in the correct order
                 std::vector<cv::Point2f> source;
+                float tl = std::numeric_limits<float>::infinity();
+                float br = 0;
+                cv::Point2f topLeft;
+                cv::Point2f bottomRight;
+                cv::Point2f bottomLeft;
+                cv::Point2f topRight;
+                int lowerY = 0;
                 
-                //cv::Point2f in_array[4];
-                //cv::Point2f out_array[4]; 
+                for(auto& e1: *it){
+                    if(e1.x + e1.y > br) {
+                        br = e1.x + e1.y;
+                        bottomRight = e1;
+                    }
+                    if(e1.x + e1.y < tl){
+                        tl = e1.x + e1.y;
+                        topLeft = e1;
+                    }
+                }
                 
-                //int i = 0;
-                for(auto& e1: *it) source.push_back(e1);
+               for(auto& e1: *it){
+                    if(e1.x + e1.y != tl && e1.x + e1.y != br){
+                        if(e1.y > lowerY){;
+                            if(lowerY == 0){
+                                bottomLeft = e1;
+                            } else{
+                                topRight = bottomLeft;
+                                bottomLeft = e1;
+                            }                            
+                            lowerY = e1.y;
+                        } else topRight = e1;
+                    }
+                }
+                source.push_back(topLeft);
+                source.push_back(bottomLeft);
+                source.push_back(bottomRight);
+                source.push_back(topRight);     
+                
+                
                 
                 //i = 0;
                 //for(auto& e2: dest) out_array[i++] = e2;
                 
 //std::cout << "Recognized: " << *it << std::endl;
-                cv::Mat warped_result;// = cv::Mat(cv::Size(ImageClassifier::WARPED_XSIZE, ImageClassifier::WARPED_YSIZE), /*src_gray.type()*/ theSign.type());
+                cv::Mat warped_result = cv::Mat(cv::Size(ImageClassifier::WARPED_XSIZE, ImageClassifier::WARPED_YSIZE), 0);//theSign.type());
                 
 //std::cout << "Target: " << dest << std::endl;
                 //getPerspectiveTransform
@@ -210,8 +251,9 @@ SignType ImageClassifier::classifySign(cv::Mat& theSign){
 /// Checks to see if the sign is a 40 km/h speed sign, within the confidence specified
 bool ImageClassifier::checkSignFor40(cv::Mat& sample, float conf){
     
+    //look for the speed_40 image in the sample
     cv::Mat result;    
-    cv::matchTemplate(speed_40, sample, result, cv::TM_CCOEFF_NORMED);
+    cv::matchTemplate(sample, speed_40, result, cv::TM_CCOEFF_NORMED);
     cv::normalize(result, result, 0, 1, cv::NORM_MINMAX, -1, cv::Mat());
     
 /*    for(auto it = result.begin<cv::Vec3b>(); it != result.end<cv::Vec3b>(); ++it){
@@ -252,8 +294,9 @@ bool ImageClassifier::checkSignFor40(cv::Mat& sample, float conf){
 /// Checks to see if the sign is a 80 km/h speed sign, within the confidence specified
 bool ImageClassifier::checkSignFor80(cv::Mat& sample, float conf){
     
+    //look for the speed_80 sign in the image
     cv::Mat result;    
-    cv::matchTemplate(speed_80, sample, result, cv::TM_CCOEFF_NORMED);
+    cv::matchTemplate(sample, speed_80, result, cv::TM_CCOEFF_NORMED);
     cv::normalize(result, result, 0, 1, cv::NORM_MINMAX, -1, cv::Mat());
   
     /*for(auto it = result.begin<cv::Vec3b>(); it != result.end<cv::Vec3b>(); ++it){
