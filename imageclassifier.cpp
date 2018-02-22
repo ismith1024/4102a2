@@ -51,10 +51,18 @@ SignType ImageClassifier::classifySign(cv::Mat& theSign){
     const float epsilon = 0.04;   //contour approximation -- default was 0.008
     //SEARCHDEPTH -- only want to look at the largest contours for sign outlines
     const int searchSize = 4;
+    //CLASSIFIER CONFIDENCE
+    const float classConf = 0.75;
     ///////////////////////////////////////////////////////////////////////////////////
+    
+    
+    cv::Mat trans( 2, 4, CV_32FC1 );
+    trans = cv::Mat::zeros( theSign.rows, theSign.cols, theSign.type() );
     
     //default return = fail
     SignType ret = NO_MATCH;
+    
+    
     
     //find Canny edges
     cv::Mat detEdges;
@@ -73,11 +81,12 @@ SignType ImageClassifier::classifySign(cv::Mat& theSign){
     for(auto& e1: contours){
         std::vector<cv::Point> polygon;
         std::vector<cv::Point> convexHull;
+
         
         //arc length of the contour
         float perimieter = cv::arcLength(e1, true);
 
-        cv::approxPolyDP(e1, polygon, (epsilon * perimieter), true); //0.008  ////TODO: should this be epsilon, or (epsilton * e1.size())?
+        cv::approxPolyDP(e1, polygon, (epsilon * perimieter), true); //0.008  
         //cv::convexHull(polygon, convexHull);
         //polygons.push_back(convexHull);
         polygons.push_back(polygon);
@@ -99,10 +108,8 @@ SignType ImageClassifier::classifySign(cv::Mat& theSign){
     std::vector<cv::Point> allPoints;
     //check the corners of the polygons from largest to smallest.  If the largest is an octagon, return STOP_SIGN
     for(auto it = polygons.begin(); it != polygons.end() && it != (polygons.begin() + searchSize); ++it){ 
-        for(auto& e1: *it) allPoints.push_back(e1);
-        std::cout << it->size() << std::endl;
-        
-//if(it->size() == 8) octagons.push_back(*it);
+        //for(auto& e1: *it) allPoints.push_back(e1);
+        //std::cout << it->size() << std::endl;
         
         if(/*e1.*/it->size() == 8) {
             ret = STOP_SIGN;
@@ -114,15 +121,67 @@ SignType ImageClassifier::classifySign(cv::Mat& theSign){
     //cv::convexHull(allPoints, bigHull);
     //polygons.insert(polygons.begin(), bigHull);
     
-        //cv::Mat warped_result = cv::Mat(cv::Size(WARPED_XSIZE, WARPED_YSIZE), src_gray.type());
+    
+    ////// Perspective transform to find speed sign
+    /// 
 
-   
-////// TODO: Perspective transform    
-    //getPerspectiveTransform
-    //warpPerspective along with images speed_40.bmp, and speed_80.bmp to tell the type of speed limit sign
+    std::vector<cv::Point2f> dest;
+        dest.push_back(cv::Point2f(0.0, 0.0));
+        dest.push_back(cv::Point2f(0.0, 0.0 + ImageClassifier::WARPED_YSIZE));
+        dest.push_back(cv::Point2f(0.0 + ImageClassifier::WARPED_XSIZE, 0.0 + ImageClassifier::WARPED_YSIZE));
+        dest.push_back(cv::Point2f(0.0 + ImageClassifier::WARPED_XSIZE, 0.0));
+
     // but they are used only when you have determined that you are indeed looking at a speed limit sign and not a stop sign. 
     
-    //Finally the routine matchtemplate( , , cv2.TM_CCOEFF_NORMED) is the best way to compare the stored template (from the .bmp files) for the 80/40 speed limit signs and the warped input sub-image.
+     
+    if(ret != STOP_SIGN){
+        
+        //ref: http://opencvexamples.blogspot.com/2014/01/perspective-transform.html
+        
+        /*MatOfPoint2f*/
+        
+        //check the n largest polygons with four sides
+        for(auto it = polygons.begin(); it != polygons.end() && it != (polygons.begin() + searchSize); ++it){
+            if(it->size() == 4){
+                std::vector<cv::Point2f> source;
+                
+                //cv::Point2f in_array[4];
+                //cv::Point2f out_array[4]; 
+                
+                //int i = 0;
+                for(auto& e1: *it) source.push_back(e1);
+                
+                //i = 0;
+                //for(auto& e2: dest) out_array[i++] = e2;
+                
+//std::cout << "Recognized: " << *it << std::endl;
+                cv::Mat warped_result;// = cv::Mat(cv::Size(ImageClassifier::WARPED_XSIZE, ImageClassifier::WARPED_YSIZE), /*src_gray.type()*/ theSign.type());
+                
+//std::cout << "Target: " << dest << std::endl;
+                //getPerspectiveTransform
+                trans = cv::getPerspectiveTransform(/*in_array, out_array);/*/source, dest);
+                
+//std::cout << "Map: " << trans << std::endl;
+                
+                //warpPerspective                  
+                //cv::warpPerspective(theSign/*src*/, warped_result /*dst*/, trans /*InputArray M*/, warped_result.size());//,         cv::INTER_LINEAR/*int flags=INTER_LINEAR*/, cv::BORDER_CONSTANT/*int borderMode=BORDER_CONSTANT*/); //, 0 /*const Scalar& borderValue=Scalar()*/);
+                
+                cv::warpPerspective(theSign, warped_result, trans, warped_result.size());
+                
+                if(checkSignFor40(warped_result, classConf)){
+                    ret = SPEED_LIMIT_40_SIGN;
+                    break;
+                }
+                if(checkSignFor80(warped_result, classConf)){
+                    ret = SPEED_LIMIT_80_SIGN;
+                    break;                    
+                }
+                
+            }     
+            
+        }        
+    }   
+    
     
     ///////////////    
     /// Draw the polygons to help visualize what the classifier is doing
@@ -144,6 +203,93 @@ SignType ImageClassifier::classifySign(cv::Mat& theSign){
     return ret;
 }
 
+
+///Finally the routine matchtemplate( , , cv2.TM_CCOEFF_NORMED) is the best way to compare the stored template (from the .bmp files) for the 80/40 speed limit signs and the warped input sub-image.  
+
+//////// imageclassifier::checksignfor40()
+/// Checks to see if the sign is a 40 km/h speed sign, within the confidence specified
+bool ImageClassifier::checkSignFor40(cv::Mat& sample, float conf){
+    
+    cv::Mat result;    
+    cv::matchTemplate(speed_40, sample, result, cv::TM_CCOEFF_NORMED);
+    cv::normalize(result, result, 0, 1, cv::NORM_MINMAX, -1, cv::Mat());
+    
+/*    for(auto it = result.begin<cv::Vec3b>(); it != result.end<cv::Vec3b>(); ++it){
+        std::cout << "40 -- " << *it << std::endl;
+        //if(*it > conf) return true;
+    }*/
+    
+    
+    /// Localizing the best match with minMaxLoc
+    double minVal; double maxVal; cv::Point minLoc; cv::Point maxLoc;
+    cv::Point matchLoc;
+
+    minMaxLoc( result, &minVal, &maxVal, &minLoc, &maxLoc, cv::Mat() );
+
+    /// For SQDIFF and SQDIFF_NORMED, the best matches are lower values. For all the other methods, the higher the better
+    //if( match_method  == CV_TM_SQDIFF || match_method == CV_TM_SQDIFF_NORMED )
+    matchLoc = minLoc;
+    //else
+    //    { matchLoc = maxLoc; }
+
+    std::cout << "40 Min value: " << minVal << " ... Max Val: " << maxVal << std::endl;
+    
+    cv::rectangle( sample, matchLoc, cv::Point( matchLoc.x + speed_80.cols , matchLoc.y + speed_80.rows ), cv::Scalar::all(0), 2, 8, 0 );
+    cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + speed_80.cols , matchLoc.y + speed_80.rows ), cv::Scalar::all(0), 2, 8, 0 );
+
+    const char* image_window = "Source Image";
+    const char* result_window = "Result window";
+    
+    cv::imshow( image_window, sample );
+    cv::imshow( result_window, result );
+    
+    cv::waitKey(0);
+    
+    return false;
+}
+
+//////// imageclassifier::checksignfor80()
+/// Checks to see if the sign is a 80 km/h speed sign, within the confidence specified
+bool ImageClassifier::checkSignFor80(cv::Mat& sample, float conf){
+    
+    cv::Mat result;    
+    cv::matchTemplate(speed_80, sample, result, cv::TM_CCOEFF_NORMED);
+    cv::normalize(result, result, 0, 1, cv::NORM_MINMAX, -1, cv::Mat());
+  
+    /*for(auto it = result.begin<cv::Vec3b>(); it != result.end<cv::Vec3b>(); ++it){
+        std::cout << "80 -- " << *it << std::endl;
+        //if(*it > conf) return true;
+    }*/
+    
+        /// Localizing the best match with minMaxLoc
+    double minVal; double maxVal; cv::Point minLoc; cv::Point maxLoc;
+    cv::Point matchLoc;
+
+    minMaxLoc( result, &minVal, &maxVal, &minLoc, &maxLoc, cv::Mat() );
+
+    /// For SQDIFF and SQDIFF_NORMED, the best matches are lower values. For all the other methods, the higher the better
+    //if( match_method  == CV_TM_SQDIFF || match_method == CV_TM_SQDIFF_NORMED )
+    matchLoc = minLoc;
+    //else
+        //{ matchLoc = maxLoc; }
+
+    std::cout << "80 Min value: " << minVal << " ... Max Val: " << maxVal << std::endl;
+
+    cv::rectangle( sample, matchLoc, cv::Point( matchLoc.x + speed_80.cols , matchLoc.y + speed_80.rows ), cv::Scalar::all(0), 2, 8, 0 );
+    cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + speed_80.cols , matchLoc.y + speed_80.rows ), cv::Scalar::all(0), 2, 8, 0 );
+
+    
+    const char* image_window = "Source Image";
+    const char* result_window = "Result window";
+    
+    cv::imshow( image_window, sample );
+    cv::imshow( result_window, result );
+    
+    cv::waitKey(0);
+    
+    
+    return false;
+}
 
 /*The goal of the program you are going to write is to classify street signs, in
 particular stop signs and two different speed limit signs (40km and 80km). There

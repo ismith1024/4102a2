@@ -23,6 +23,7 @@ class ImageClassifier{
     static const int WARPED_XSIZE = 200;
     static const int WARPED_YSIZE = 300;
     
+    
 private:
     cv::Mat speed_80;
     cv::Mat speed_40;
@@ -32,6 +33,8 @@ public:
     ~ImageClassifier();
     int prepare(cv::Mat&, cv::Mat&);
     SignType classifySign(cv::Mat&);
+    bool checkSignFor40(cv::Mat&, float);
+    bool checkSignFor80(cv::Mat&, float);
     
 };
 
