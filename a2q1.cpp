@@ -58,12 +58,8 @@ have produced, one for each of the seven test cases.*/
 int main(int argc, char* argv[]) {
     
     cv::Mat src; 
-    //cv::Mat src_gray;
-    cv::Mat warped_result;
     cv::Mat target;
-    //cv::Mat speed_80, speed_40;
     int canny_thresh = 120;
-    
     
     if(argc < 2){
         std::cout << "Usage: ./a2q1 <filename>" << std::endl;
@@ -82,10 +78,10 @@ int main(int argc, char* argv[]) {
     std::string filename = argv[1];
     std::cout << "Attempting to classify sign in image " << filename << std::endl;
 
-    /// Load source image and convert it to gray
+    //Read source image
     src = cv::imread(filename, 1);    
-    //int res = classifier->prepare(src, target);
     
+    //Classify the image
     SignType result = classifier->classifySign(src);
     std::string final_sign_output_name = "Result--" + filename;
 
@@ -112,8 +108,6 @@ int main(int argc, char* argv[]) {
     //cv::imwrite(final_sign_output_name, src);
 
     cv::waitKey(0);
-   
-    //bool foo = classifier->findImageDemo(target, 0.0);
     
     delete classifier;
 

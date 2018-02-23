@@ -35,9 +35,7 @@ public:
     SignType classifySign(cv::Mat&);
     float checkSignFor40(cv::Mat&, float);
     float checkSignFor80(cv::Mat&, float);
-    bool findImageDemo(cv::Mat&, float);///*cv::Mat&, float*/);
-    
-    
+   
 };
 
 #endif // IMCLASS_H
