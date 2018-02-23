@@ -71,7 +71,7 @@ int main(int argc, char* argv[]) {
     try{
         classifier = new ImageClassifier();
     } catch(const char* e){
-        std::cout << "Unable to open 40 or 80 km/h training signs" << std::endl;
+        std::cout << "Unable to open 40 or 80 km/h template signs" << std::endl;
         exit(-1);        
     }    
     
@@ -105,7 +105,9 @@ int main(int argc, char* argv[]) {
     const char* source_window = "Result";
     cv::namedWindow(source_window, cv::WINDOW_AUTOSIZE);
     cv::imshow(source_window, src); //src
-    //cv::imwrite(final_sign_output_name, src);
+    
+    //Write the tagged image to file
+    cv::imwrite(final_sign_output_name, src);
 
     cv::waitKey(0);
     

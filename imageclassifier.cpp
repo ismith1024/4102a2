@@ -25,14 +25,14 @@ ImageClassifier::~ImageClassifier(){
 /// ImageClassifier:: prepare(Mat&)
 /// Convert image to gray and blur it
 int ImageClassifier::prepare(cv::Mat& src, cv::Mat& target){
-    const int thr = 128;
-    const int maxVal = 255;
+    const int thr = 128; //128
+    const int maxVal = 200; //255
     
     cv::Mat src_gray;
     cv::Mat thresh;
     cv::cvtColor(src, src_gray, cv::COLOR_BGR2GRAY);
     cv::threshold(src_gray, thresh, thr, maxVal,cv::THRESH_BINARY);
-    cv::blur(thresh, target, cv::Size(5, 5));
+    cv::blur(thresh, target, cv::Size(4, 4)); //5,5
     return 0;
 }
 
@@ -44,21 +44,32 @@ int ImageClassifier::prepare(cv::Mat& src, cv::Mat& target){
 /// Uses Canny(), findContours(), and approxPolyDP(). 
 SignType ImageClassifier::classifySign(cv::Mat& aSign){
     
-    cv::Mat theSign;
-    prepare(aSign, theSign);
-    
     ///////////////////////////////////////////////////////////////////////////////////
     //////PARMS TO EXPERIMENT WITH
     // CANNY 
-    const int canny_thresh = 120;  //lower Canny threshold  -- default was 120
+    const int canny_thresh_ = 120;  //lower Canny threshold  -- default was 120
     const float canny_mult = 2.0;  //multiplier for the upper threshold -- default was 2
     //APPROXPOLYDP 
-    const float epsilon = 0.04;   //contour approximation -- default was 0.008
+    const float epsilon = 0.04;   //****don't change this
     //SEARCHDEPTH -- only want to look at the largest contours for sign outlines
-    const int searchSize = 4;
-    //CLASSIFIER CONFIDENCE
-    const float classConf = 0.6;
+    const int searchSize = 6;
+    //CLASSIFIER CONFIDENCE THRESHOLD
+    const float classConf = 0.46;
     ///////////////////////////////////////////////////////////////////////////////////
+
+    //prepare the image for edge detection
+    cv::Mat theSign;
+    prepare(aSign, theSign);
+    
+    //use the adaptive Canny threshold
+    int canny_thresh = getAdaptiveCannyThreshold(theSign);
+    
+    int canny_upper = std::min(canny_thresh * (1.33333), 255.0);
+    int canny_lower = std::max(canny_thresh * (0.66666), 0.0);
+    
+    std::cout << "Adaptive Canny thresholds -- upper: " << canny_upper << " ... Lower : " << canny_lower << std::endl;
+    
+    //to hold best match classifier confidence values
     float best40 = 0.0;
     float best80 = 0.0;
     
@@ -70,7 +81,7 @@ SignType ImageClassifier::classifySign(cv::Mat& aSign){
     
     //find Canny edges
     cv::Mat detEdges;
-    cv::Canny(theSign, detEdges, canny_thresh, (canny_mult * canny_thresh), 3); 
+    cv::Canny(theSign, detEdges, canny_upper, canny_lower, 3); 
     
     //find contours
     std::vector<std::vector<cv::Point>> contours;
@@ -80,25 +91,31 @@ SignType ImageClassifier::classifySign(cv::Mat& aSign){
     //Fit polygons to the contours    
     std::vector<std::vector<cv::Point>> polygons;
     
-    //detet simple polygon
+
+    //detect simple polygon
     //ref: https://www.pyimagesearch.com/2016/02/08/opencv-shape-detection/
     for(auto& e1: contours){
         std::vector<cv::Point> polygon;
         std::vector<cv::Point> convexHull;
-
+        
+        //if a contour is open, close it using convexHull()
+        if(!isContourConvex(e1)){
+               cv::convexHull(e1, convexHull);
+        } else{
+            convexHull = e1;
+        }        
         
         //arc length of the contour
-        float perimieter = cv::arcLength(e1, true);
-
-        cv::approxPolyDP(e1, polygon, (epsilon * perimieter), true); //0.008  
-        //cv::convexHull(polygon, convexHull);
-        //polygons.push_back(convexHull);
+        float perimeter = cv::arcLength(convexHull, true);
+       
+        //apply approxPolyDP function
+        cv::approxPolyDP(convexHull, polygon, (epsilon * perimeter), true);
         polygons.push_back(polygon);
     }
     
     std::cout << "Polygons detected: " << polygons.size() << std::endl;
     
-    //sort the polygons by area -- the sign is likely to be one of the largest contours
+    //sort the polygons by area -- the sign is assumed to be one of the largest contours
     sort(polygons.begin(), polygons.end(), [](const std::vector<cv::Point>& a, const std::vector<cv::Point>& b) -> bool{ 
         std::vector<cv::Point> hull1;
         std::vector<cv::Point> hull2;
@@ -106,25 +123,16 @@ SignType ImageClassifier::classifySign(cv::Mat& aSign){
         cv::convexHull(b, hull2);
         return cv::contourArea(hull1) > cv::contourArea(hull2); 
     });
-    
-
-    std::vector<cv::Point> bigHull;
-    std::vector<cv::Point> allPoints;
-    //check the corners of the polygons from largest to smallest.  If the largest is an octagon, return STOP_SIGN
+       
+    // Count the number of vertices of the polygons from largest to smallest (within the _searchSize_ largest polygons by area).
+    // If an octagon is found, return STOP_SIGN
     for(auto it = polygons.begin(); it != polygons.end() && it != (polygons.begin() + searchSize); ++it){ 
-        //for(auto& e1: *it) allPoints.push_back(e1);
-        //std::cout << it->size() << std::endl;
-        
         if(it->size() == 8) {
+            std::cout << "Octagon detected in " << searchSize << " largest polygons -- STOP_SIGN" << std::endl; 
             ret = STOP_SIGN;
-            //return ret;
+            break;
         }
     }
-    
-    ////// Some convex hull stuff in case the contour isn't closed
-    //cv::convexHull(allPoints, bigHull);
-    //polygons.insert(polygons.begin(), bigHull);
-    
     
     ////// Perspective transform to find speed sign
     std::vector<cv::Point2f> dest;
@@ -143,6 +151,7 @@ SignType ImageClassifier::classifySign(cv::Mat& aSign){
                                
                 //vector to hold the four points of the skewed image
                 //need to add the points in the correct order
+                //this section determines which corner each of the points is, and assigns them appropriately
                 std::vector<cv::Point2f> source;
                 float tl = std::numeric_limits<float>::infinity();
                 float br = 0;
@@ -277,13 +286,13 @@ float ImageClassifier::checkSignFor40(cv::Mat& sample, float conf){
         
     std::cout << "40 Min value: " << minVal << " ... Max Val: " << maxVal << std::endl;
 
-    /// Show me what you got
+    /// Display the findings
     cv::rectangle( img_display, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
     cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
-    cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
+    //cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
     
     cv::imshow( image_window, img_display );
-    cv::imshow( result_window, result );
+    //cv::imshow( result_window, result );
     cv::imshow( template_window, templ );
     
     cv::waitKey(0);
@@ -342,10 +351,10 @@ float ImageClassifier::checkSignFor80(cv::Mat& sample, float conf){
     /// Show me what you got
     cv::rectangle( img_display, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
     cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
-    cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
+    //cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
     
     cv::imshow( image_window, img_display );
-    cv::imshow( result_window, result );
+    //cv::imshow( result_window, result );
     cv::imshow( template_window, templ );
     
     cv::waitKey(0);
@@ -356,6 +365,22 @@ float ImageClassifier::checkSignFor80(cv::Mat& sample, float conf){
 }
 
 
+/////// ImageClassifier::getAdaptiveCannyThreshold
+/// Computes an upper Canny threshold based on the characteristics of the image
+/// Uses the median value of the pixels as described by
+/// https://www.pyimagesearch.com/2015/04/06/zero-parameter-automatic-canny-edge-detection-with-python-and-opencv/
+int ImageClassifier::getAdaptiveCannyThreshold(cv::Mat& img){
+    
+    cv::Mat oneRow = img.reshape(0,1);
+    std::vector<double> imgPoints;
+    oneRow.copyTo(imgPoints);    
+    int n = imgPoints.size() * 0.5;
+    std::nth_element(imgPoints.begin(), imgPoints.begin()+n, imgPoints.end());
+    int ret = imgPoints[n];
+    //std::cout<< "Adaptive Canny threshold : " << ret << std::endl;
+    
+    return ret;
+}
 
 
 /*The goal of the program you are going to write is to classify street signs, in

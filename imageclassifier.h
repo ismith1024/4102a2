@@ -35,7 +35,7 @@ public:
     SignType classifySign(cv::Mat&);
     float checkSignFor40(cv::Mat&, float);
     float checkSignFor80(cv::Mat&, float);
-   
+    int getAdaptiveCannyThreshold(cv::Mat&);
 };
 
 #endif // IMCLASS_H
