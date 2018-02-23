@@ -34,9 +34,6 @@ int ImageClassifier::prepare(cv::Mat& src, cv::Mat& target){
     std::cout << src_gray.type() <<std::endl;
     cv::threshold(src_gray, thresh, thr, maxVal,cv::THRESH_BINARY);
     cv::blur(/*src_gray*/ thresh, target, cv::Size(5, 5));
-    //cv::threshold(target, targ2, 60, 255, cv::THRESH_BINARY);//[1];
-    //cv::Mat warped_result = cv::Mat(cv::Size(WARPED_XSIZE, WARPED_YSIZE), src_gray.type());
-    //target = targ2;
     return 0;
 }
 
@@ -46,7 +43,10 @@ int ImageClassifier::prepare(cv::Mat& src, cv::Mat& target){
 /// ImageClassifier::classifysign
 /// Finds the closest match among stop sign, speed 40, speed 80 
 /// Uses Canny(), findContours(), and approxPolyDP(). 
-SignType ImageClassifier::classifySign(cv::Mat& theSign){
+SignType ImageClassifier::classifySign(cv::Mat& aSign){
+    
+    cv::Mat theSign;
+    prepare(aSign, theSign);
     
     ///////////////////////////////////////////////////////////////////////////////////
     //////PARMS TO EXPERIMENT WITH
@@ -58,9 +58,10 @@ SignType ImageClassifier::classifySign(cv::Mat& theSign){
     //SEARCHDEPTH -- only want to look at the largest contours for sign outlines
     const int searchSize = 4;
     //CLASSIFIER CONFIDENCE
-    const float classConf = 0.75;
+    const float classConf = 0.6;
     ///////////////////////////////////////////////////////////////////////////////////
-    
+    float best40 = 0.0;
+    float best80 = 0.0;
     
     cv::Mat trans( 2, 4, CV_32FC1 );
     trans = cv::Mat::zeros( theSign.rows, theSign.cols, theSign.type() );
@@ -124,27 +125,21 @@ SignType ImageClassifier::classifySign(cv::Mat& theSign){
         //else if(/*e1*/it->size() == 4) break;
     }
     
+    ////// Some convex hull stuff in case the contour isn't closed
     //cv::convexHull(allPoints, bigHull);
     //polygons.insert(polygons.begin(), bigHull);
     
     
     ////// Perspective transform to find speed sign
-    /// 
-
     std::vector<cv::Point2f> dest;
         dest.push_back(cv::Point2f(0.0, 0.0));
-        dest.push_back(cv::Point2f(0.0, 0.0 + ImageClassifier::WARPED_YSIZE));
-        dest.push_back(cv::Point2f(0.0 + ImageClassifier::WARPED_XSIZE, 0.0 + ImageClassifier::WARPED_YSIZE));
-        dest.push_back(cv::Point2f(0.0 + ImageClassifier::WARPED_XSIZE, 0.0));
+        dest.push_back(cv::Point2f(0.0, 0.0 + ImageClassifier::WARPED_YSIZE -1));
+        dest.push_back(cv::Point2f(0.0 + ImageClassifier::WARPED_XSIZE -1, 0.0 + ImageClassifier::WARPED_YSIZE -1));
+        dest.push_back(cv::Point2f(0.0 + ImageClassifier::WARPED_XSIZE -1, 0.0));
 
-    // but they are used only when you have determined that you are indeed looking at a speed limit sign and not a stop sign. 
-    
-     
+    // they are used when it is determined that it is a speed limit sign and not a stop sign. 
+    //ref: http://opencvexamples.blogspot.com/2014/01/perspective-transform.html
     if(ret != STOP_SIGN){
-        
-        //ref: http://opencvexamples.blogspot.com/2014/01/perspective-transform.html
-        
-        /*MatOfPoint2f*/
         
         //check the n largest polygons with four sides
         for(auto it = polygons.begin(); it != polygons.end() && it != (polygons.begin() + searchSize); ++it){
@@ -190,38 +185,36 @@ SignType ImageClassifier::classifySign(cv::Mat& theSign){
                 source.push_back(bottomRight);
                 source.push_back(topRight);     
                 
+                cv::Mat warped_result = cv::Mat(cv::Size(ImageClassifier::WARPED_XSIZE, ImageClassifier::WARPED_YSIZE), 0);
                 
-                
-                //i = 0;
-                //for(auto& e2: dest) out_array[i++] = e2;
-                
-//std::cout << "Recognized: " << *it << std::endl;
-                cv::Mat warped_result = cv::Mat(cv::Size(ImageClassifier::WARPED_XSIZE, ImageClassifier::WARPED_YSIZE), 0);//theSign.type());
-                
-//std::cout << "Target: " << dest << std::endl;
                 //getPerspectiveTransform
-                trans = cv::getPerspectiveTransform(/*in_array, out_array);/*/source, dest);
-                
-//std::cout << "Map: " << trans << std::endl;
+                trans = cv::getPerspectiveTransform(source, dest);
                 
                 //warpPerspective                  
-                //cv::warpPerspective(theSign/*src*/, warped_result /*dst*/, trans /*InputArray M*/, warped_result.size());//,         cv::INTER_LINEAR/*int flags=INTER_LINEAR*/, cv::BORDER_CONSTANT/*int borderMode=BORDER_CONSTANT*/); //, 0 /*const Scalar& borderValue=Scalar()*/);
-                
                 cv::warpPerspective(theSign, warped_result, trans, warped_result.size());
-                
-                if(checkSignFor40(warped_result, classConf)){
-                    ret = SPEED_LIMIT_40_SIGN;
-                    break;
+
+                //Check the warped and resized image for the best match with the templates
+
+                float chk40 = checkSignFor40(warped_result, classConf);
+                float chk80 = checkSignFor80(warped_result, classConf);
+                                
+                if( chk40 > best40){
+                    best40 = chk40;
                 }
-                if(checkSignFor80(warped_result, classConf)){
-                    ret = SPEED_LIMIT_80_SIGN;
-                    break;                    
+                if(chk80 > best80){
+                    best80 = chk80;               
                 }
                 
             }     
             
         }        
     }   
+    
+    //if both 40 and 80 were under the  detection threshold, fail
+    //else take the better match
+    if(best40 == 0.0 && best80 == 0.0) ret = NO_MATCH;
+    else if (best40 > best80) ret = SPEED_LIMIT_40_SIGN;
+    else ret = SPEED_LIMIT_80_SIGN;
     
     
     ///////////////    
@@ -230,9 +223,9 @@ SignType ImageClassifier::classifySign(cv::Mat& theSign){
     cv::Mat drawing = cv::Mat::zeros(theSign.size(), CV_8UC3);
     
     cv::RNG rng(12345);    
-    for( int i = 0; i < searchSize+1/*contours.size()* / && i < octagons.size()*/ ; i++ ){
+    for( int i = 0; i < searchSize + 1 && i < polygons.size(); i++ ){
        cv::Scalar color = cv::Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
-       drawContours( drawing, polygons /*octagons*/, i, color, 2, 8, hierarchy, 0, cv::Point() );
+       drawContours( drawing, polygons, i, color, 2, 8, hierarchy, 0, cv::Point() );
     }
     
 
@@ -249,17 +242,74 @@ SignType ImageClassifier::classifySign(cv::Mat& theSign){
 
 //////// imageclassifier::checksignfor40()
 /// Checks to see if the sign is a 40 km/h speed sign, within the confidence specified
-bool ImageClassifier::checkSignFor40(cv::Mat& sample, float conf){
+float ImageClassifier::checkSignFor40(cv::Mat& sample, float conf){
     
+    const char* image_window = "Source Image";
+    const char* result_window = "Result window";
+    const char* template_window = "Template window";
+    
+    
+    /// Source image to display
+    cv::Mat img = sample;//sample; //cv::imread("demo_source.jpg", 1);
+    cv::Mat templ = speed_40; //speed_40;// cv::imread("demo_template.jpg",1);
+    
+    cv::Mat img_display;
+    img.copyTo( img_display );
+  
+    /// Create the result matrix
+    int result_cols = img.cols - templ.cols + 1;
+    int result_rows = img.rows - templ.rows + 1;
+
+    cv::Mat result;
+    
+    result.create( result_rows, result_cols, CV_32FC1 );
+
+    /// Do the Matching and Normalize
+    int match_method = CV_TM_CCOEFF_NORMED;
+    
+    cv::matchTemplate( img, templ, result, match_method );
+    //cv::normalize( result, result, 0, 1, cv::NORM_MINMAX, -1, cv::Mat() );
+
+    /// Localizing the best match with minMaxLoc
+    double minVal; double maxVal; cv::Point minLoc; cv::Point maxLoc;
+    cv::Point matchLoc;
+
+    cv::minMaxLoc( result, &minVal, &maxVal, &minLoc, &maxLoc, cv::Mat() );
+
+    /// For SQDIFF and SQDIFF_NORMED, the best matches are lower values. For all the other methods, the higher the better
+    if( match_method  == CV_TM_SQDIFF || match_method == CV_TM_SQDIFF_NORMED )
+        { matchLoc = minLoc; }
+    else
+        { matchLoc = maxLoc; }
+        
+    std::cout << "40 Min value: " << minVal << " ... Max Val: " << maxVal << std::endl;
+
+    /// Show me what you got
+    cv::rectangle( img_display, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
+    cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
+    cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
+    
+    cv::imshow( image_window, img_display );
+    cv::imshow( result_window, result );
+    cv::imshow( template_window, templ );
+    
+    cv::waitKey(0);
+    
+    if(minVal > conf) return minVal;
+    
+    return 0.0;
+}
+    
+    /*   
     //look for the speed_40 image in the sample
     cv::Mat result;    
     cv::matchTemplate(sample, speed_40, result, cv::TM_CCOEFF_NORMED);
-    cv::normalize(result, result, 0, 1, cv::NORM_MINMAX, -1, cv::Mat());
+    //cv::normalize(result, result, 0, 1, cv::NORM_MINMAX, -1, cv::Mat());
     
 /*    for(auto it = result.begin<cv::Vec3b>(); it != result.end<cv::Vec3b>(); ++it){
         std::cout << "40 -- " << *it << std::endl;
         //if(*it > conf) return true;
-    }*/
+    }* /
     
     
     /// Localizing the best match with minMaxLoc
@@ -270,9 +320,9 @@ bool ImageClassifier::checkSignFor40(cv::Mat& sample, float conf){
 
     /// For SQDIFF and SQDIFF_NORMED, the best matches are lower values. For all the other methods, the higher the better
     //if( match_method  == CV_TM_SQDIFF || match_method == CV_TM_SQDIFF_NORMED )
-    matchLoc = minLoc;
+    //matchLoc = minLoc;
     //else
-    //    { matchLoc = maxLoc; }
+    matchLoc = maxLoc;
 
     std::cout << "40 Min value: " << minVal << " ... Max Val: " << maxVal << std::endl;
     
@@ -282,17 +332,133 @@ bool ImageClassifier::checkSignFor40(cv::Mat& sample, float conf){
     const char* image_window = "Source Image";
     const char* result_window = "Result window";
     
+    //TODO: try thresh = -0.2
+    
     cv::imshow( image_window, sample );
     cv::imshow( result_window, result );
     
     cv::waitKey(0);
     
     return false;
-}
+}*/
 
 //////// imageclassifier::checksignfor80()
 /// Checks to see if the sign is a 80 km/h speed sign, within the confidence specified
-bool ImageClassifier::checkSignFor80(cv::Mat& sample, float conf){
+// based on tutorial at 
+// https://docs.opencv.org/2.4/doc/tutorials/imgproc/histograms/template_matching/template_matching.html
+float ImageClassifier::checkSignFor80(cv::Mat& sample, float conf){
+    
+    const char* image_window = "Source Image";
+    const char* result_window = "Result window";
+    const char* template_window = "Template window";
+    
+    
+    /// Source image to display
+    cv::Mat img = sample;//sample; //cv::imread("demo_source.jpg", 1);
+    cv::Mat templ = speed_80; //speed_40;// cv::imread("demo_template.jpg",1);
+    
+    cv::Mat img_display;
+    img.copyTo( img_display );
+  
+    /// Create the result matrix
+    int result_cols = img.cols - templ.cols + 1;
+    int result_rows = img.rows - templ.rows + 1;
+
+    cv::Mat result;
+    
+    result.create( result_rows, result_cols, CV_32FC1 );
+
+    /// Do the Matching and Normalize
+    int match_method = CV_TM_CCOEFF_NORMED;
+    
+    cv::matchTemplate( img, templ, result, match_method );
+    //cv::normalize( result, result, 0, 1, cv::NORM_MINMAX, -1, cv::Mat() );
+
+    /// Localizing the best match with minMaxLoc
+    double minVal; double maxVal; cv::Point minLoc; cv::Point maxLoc;
+    cv::Point matchLoc;
+
+    cv::minMaxLoc( result, &minVal, &maxVal, &minLoc, &maxLoc, cv::Mat() );
+
+    /// For SQDIFF and SQDIFF_NORMED, the best matches are lower values. For all the other methods, the higher the better
+    if( match_method  == CV_TM_SQDIFF || match_method == CV_TM_SQDIFF_NORMED )
+        { matchLoc = minLoc; }
+    else
+        { matchLoc = maxLoc; }
+        
+    std::cout << "80 Min value: " << minVal << " ... Max Val: " << maxVal << std::endl;
+
+    /// Show me what you got
+    cv::rectangle( img_display, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
+    cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
+    cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
+    
+    cv::imshow( image_window, img_display );
+    cv::imshow( result_window, result );
+    cv::imshow( template_window, templ );
+    
+    cv::waitKey(0);
+    
+    if(minVal > conf) return minVal;
+    
+    return 0.0;
+    
+    /*const char* image_window = "Source Image";
+    const char* result_window = "Result window";
+    
+    
+    /// Source image to display
+    cv::Mat img = sample; //cv::imread("demo_source.jpg", 1);
+    cv::Mat templ = speed_80;// cv::imread("demo_template.jpg",1);
+    
+    cv::Mat img_display;
+    img.copyTo( img_display );
+  
+    /// Create the result matrix
+    int result_cols = img.cols - templ.cols + 1;
+    int result_rows = img.rows - templ.rows + 1;
+
+    cv::Mat result;
+    
+    result.create( result_rows, result_cols, CV_32FC1 );
+
+    /// Do the Matching and Normalize
+    int match_method = CV_TM_CCOEFF_NORMED;
+    
+    cv::matchTemplate( img, templ, result, match_method );
+    cv::normalize( result, result, 0, 1, cv::NORM_MINMAX, -1, cv::Mat() );
+
+    /// Localizing the best match with minMaxLoc
+    double minVal; double maxVal; cv::Point minLoc; cv::Point maxLoc;
+    cv::Point matchLoc;
+
+    cv::minMaxLoc( result, &minVal, &maxVal, &minLoc, &maxLoc, cv::Mat() );
+
+    /// For SQDIFF and SQDIFF_NORMED, the best matches are lower values. For all the other methods, the higher the better
+    if( match_method  == CV_TM_SQDIFF || match_method == CV_TM_SQDIFF_NORMED )
+        { matchLoc = minLoc; }
+    else
+        { matchLoc = maxLoc; }
+        
+    std::cout << "80 Min value: " << minVal << " ... Max Val: " << maxVal << std::endl;
+
+    /// Show me what you got
+    cv::rectangle( img_display, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
+    cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
+
+    cv::imshow( image_window, img_display );
+    cv::imshow( result_window, result );
+
+    cv::waitKey(0);
+    
+    return false;*/
+}
+
+
+
+
+
+/*bool ImageClassifier::checkSignFor80(cv::Mat& sample, float conf){
     
     //look for the speed_80 sign in the image
     cv::Mat result;    
@@ -302,7 +468,7 @@ bool ImageClassifier::checkSignFor80(cv::Mat& sample, float conf){
     /*for(auto it = result.begin<cv::Vec3b>(); it != result.end<cv::Vec3b>(); ++it){
         std::cout << "80 -- " << *it << std::endl;
         //if(*it > conf) return true;
-    }*/
+    }* /
     
         /// Localizing the best match with minMaxLoc
     double minVal; double maxVal; cv::Point minLoc; cv::Point maxLoc;
@@ -312,9 +478,9 @@ bool ImageClassifier::checkSignFor80(cv::Mat& sample, float conf){
 
     /// For SQDIFF and SQDIFF_NORMED, the best matches are lower values. For all the other methods, the higher the better
     //if( match_method  == CV_TM_SQDIFF || match_method == CV_TM_SQDIFF_NORMED )
-    matchLoc = minLoc;
+    //matchLoc = minLoc;
     //else
-        //{ matchLoc = maxLoc; }
+    matchLoc = maxLoc;
 
     std::cout << "80 Min value: " << minVal << " ... Max Val: " << maxVal << std::endl;
 
@@ -329,6 +495,66 @@ bool ImageClassifier::checkSignFor80(cv::Mat& sample, float conf){
     cv::imshow( result_window, result );
     
     cv::waitKey(0);
+    
+    
+    return false;
+}*/
+    
+    
+
+//demo code for experimenting -- taken from tutorial at 
+//https://docs.opencv.org/2.4/doc/tutorials/imgproc/histograms/template_matching/template_matching.html
+bool ImageClassifier::findImageDemo(cv::Mat& sample, float conf){
+    
+    const char* image_window = "Source Image";
+    const char* result_window = "Result window";
+    
+    
+    /// Source image to display
+    //cv::Mat img = cv::imread("demo_source.jpg", 1);
+    cv::Mat img = sample;
+    //img.copyTo( img_display );
+    cv::Mat templ = cv::imread("demo_template.jpg",1);
+    
+    cv::Mat img_display;
+    img.copyTo( img_display );
+  
+  /// Create the result matrix
+  int result_cols = img.cols - templ.cols + 1;
+  int result_rows = img.rows - templ.rows + 1;
+
+  cv::Mat result;
+  
+  result.create( result_rows, result_cols, CV_32FC1 );
+
+  /// Do the Matching and Normalize
+  int match_method = CV_TM_CCOEFF_NORMED;
+  
+  cv::matchTemplate( img, templ, result, match_method );
+  cv::normalize( result, result, 0, 1, cv::NORM_MINMAX, -1, cv::Mat() );
+
+  /// Localizing the best match with minMaxLoc
+  double minVal; double maxVal; cv::Point minLoc; cv::Point maxLoc;
+  cv::Point matchLoc;
+
+  cv::minMaxLoc( result, &minVal, &maxVal, &minLoc, &maxLoc, cv::Mat() );
+
+  /// For SQDIFF and SQDIFF_NORMED, the best matches are lower values. For all the other methods, the higher the better
+  if( match_method  == CV_TM_SQDIFF || match_method == CV_TM_SQDIFF_NORMED )
+    { matchLoc = minLoc; }
+  else
+    { matchLoc = maxLoc; }
+
+  /// Show me what you got
+  cv::rectangle( img_display, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
+  cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
+
+  cv::imshow( image_window, img_display );
+  cv::imshow( result_window, result );
+
+  cv::waitKey(0);
+  //return true;
+    
     
     
     return false;

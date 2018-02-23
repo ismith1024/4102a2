@@ -33,8 +33,10 @@ public:
     ~ImageClassifier();
     int prepare(cv::Mat&, cv::Mat&);
     SignType classifySign(cv::Mat&);
-    bool checkSignFor40(cv::Mat&, float);
-    bool checkSignFor80(cv::Mat&, float);
+    float checkSignFor40(cv::Mat&, float);
+    float checkSignFor80(cv::Mat&, float);
+    bool findImageDemo(cv::Mat&, float);///*cv::Mat&, float*/);
+    
     
 };
 

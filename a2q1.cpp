@@ -84,17 +84,9 @@ int main(int argc, char* argv[]) {
 
     /// Load source image and convert it to gray
     src = cv::imread(filename, 1);    
-    int res = classifier->prepare(src, target);
+    //int res = classifier->prepare(src, target);
     
-        // Create output window
-    //const char* source_window1 = "Prepared";
-    //cv::namedWindow(source_window1, cv::WINDOW_AUTOSIZE);
-    //cv::imshow(source_window1, target); //src
-    //cv::waitKey(0);
-    
-    //int sign_recog_result = NO_MATCH;
-    //Classifier classifies the image and returns a SignType result
-    SignType result = classifier->classifySign(target);
+    SignType result = classifier->classifySign(src);
     std::string final_sign_output_name = "Result--" + filename;
 
     std::string text;
@@ -120,6 +112,8 @@ int main(int argc, char* argv[]) {
     //cv::imwrite(final_sign_output_name, src);
 
     cv::waitKey(0);
+   
+    //bool foo = classifier->findImageDemo(target, 0.0);
     
     delete classifier;
 
