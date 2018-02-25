@@ -1,7 +1,7 @@
 COMP4102 
 Assignment 2
 Submitted by Ian Smith #100910972
-2018-02-30
+2018-02-28
 
 OpenCV version : 3.3.1
 Major version : 3
