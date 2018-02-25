@@ -11,22 +11,15 @@
 ////
 //// Usage notes: requires c++14
 //// To complile:  g++ -std=c++14 a2q1.cpp imageclassifier.cpp -o a2q1 `pkg-config --libs opencv`
+////
+//// openCV version used:
+//// OpenCV version : 3.3.1
+//// Major version : 3
+//// Minor version : 3
+//// Subminor version : 1
+////
 
-
-using namespace cv;
-//using namespace std;
-
-
-
-
-#define VERY_LARGE_VALUE 100000
-
-//#define NO_MATCH    0
-//#define STOP_SIGN            1
-//#define SPEED_LIMIT_40_SIGN  2
-//#define SPEED_LIMIT_80_SIGN  3
-
-
+////PURPOSE
 /*The goal of the program you are going to write is to classify street signs, in
 particular stop signs and two different speed limit signs (40km and 80km). There
 are seven images that you will use to test your program; speedsign3.jpg – a 40km
@@ -76,10 +69,15 @@ int main(int argc, char* argv[]) {
     }    
     
     std::string filename = argv[1];
-    std::cout << "Attempting to classify sign in image " << filename << std::endl;
 
     //Read source image
-    src = cv::imread(filename, 1);    
+    src = cv::imread(filename, 1);
+    if(src.empty()) {        
+        std::cout << "Can not open " << filename << std::endl;
+        exit(-2);
+    } else{
+        std::cout << "Attempting to classify sign in image " << filename << std::endl;
+    }    
     
     //Classify the image
     SignType result = classifier->classifySign(src);
@@ -99,7 +97,7 @@ int main(int argc, char* argv[]) {
     double fontScale = 2;
     int thickness = 3;
     cv::Point textOrg(10, 130);
-    cv::putText(src, text, textOrg, fontFace, fontScale, Scalar::all(255), thickness, 8);
+    cv::putText(src, text, textOrg, fontFace, fontScale, cv::Scalar::all(255), thickness, 8);
 
     // Create output window
     const char* source_window = "Result";

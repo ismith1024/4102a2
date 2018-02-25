@@ -25,14 +25,14 @@ ImageClassifier::~ImageClassifier(){
 /// ImageClassifier:: prepare(Mat&)
 /// Convert image to gray and blur it
 int ImageClassifier::prepare(cv::Mat& src, cv::Mat& target){
-    const int thr = 128; //128
-    const int maxVal = 200; //255
+    const int thr = 128; 
+    const int maxVal = 200; 
     
     cv::Mat src_gray;
     cv::Mat thresh;
     cv::cvtColor(src, src_gray, cv::COLOR_BGR2GRAY);
     cv::threshold(src_gray, thresh, thr, maxVal,cv::THRESH_BINARY);
-    cv::blur(thresh, target, cv::Size(4, 4)); //5,5
+    cv::blur(thresh, target, cv::Size(4, 4)); 
     return 0;
 }
 
@@ -50,7 +50,7 @@ SignType ImageClassifier::classifySign(cv::Mat& aSign){
     const int canny_thresh_ = 120;  //lower Canny threshold  -- default was 120
     const float canny_mult = 2.0;  //multiplier for the upper threshold -- default was 2
     //APPROXPOLYDP 
-    const float epsilon = 0.04;   //****don't change this
+    const float epsilon = 0.04;   
     //SEARCHDEPTH -- only want to look at the largest contours for sign outlines
     const int searchSize = 6;
     //CLASSIFIER CONFIDENCE THRESHOLD
@@ -64,8 +64,8 @@ SignType ImageClassifier::classifySign(cv::Mat& aSign){
     //use the adaptive Canny threshold
     int canny_thresh = getAdaptiveCannyThreshold(theSign);
     
-    int canny_upper = std::min(canny_thresh * (1.33333), 255.0);
-    int canny_lower = std::max(canny_thresh * (0.66666), 0.0);
+    int canny_upper = std::min(canny_thresh * 1.33333, 255.0);
+    int canny_lower = std::max(canny_thresh * 0.66666, 0.0);
     
     std::cout << "Adaptive Canny thresholds -- upper: " << canny_upper << " ... Lower : " << canny_lower << std::endl;
     
@@ -195,7 +195,7 @@ SignType ImageClassifier::classifySign(cv::Mat& aSign){
                 //getPerspectiveTransform
                 trans = cv::getPerspectiveTransform(source, dest);
                 
-                //warpPerspective                  
+                //apply warpPerspective                  
                 cv::warpPerspective(theSign, warped_result, trans, warped_result.size());
 
                 //Check the warped and resized image for the best match with the templates
@@ -289,10 +289,8 @@ float ImageClassifier::checkSignFor40(cv::Mat& sample, float conf){
     /// Display the findings
     cv::rectangle( img_display, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
     cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
-    //cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
     
     cv::imshow( image_window, img_display );
-    //cv::imshow( result_window, result );
     cv::imshow( template_window, templ );
     
     cv::waitKey(0);
@@ -348,13 +346,11 @@ float ImageClassifier::checkSignFor80(cv::Mat& sample, float conf){
         
     std::cout << "80 Min value: " << minVal << " ... Max Val: " << maxVal << std::endl;
 
-    /// Show me what you got
+    /// Display the findings
     cv::rectangle( img_display, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
     cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
-    //cv::rectangle( result, matchLoc, cv::Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ), cv::Scalar::all(0), 2, 8, 0 );
     
     cv::imshow( image_window, img_display );
-    //cv::imshow( result_window, result );
     cv::imshow( template_window, templ );
     
     cv::waitKey(0);
@@ -377,8 +373,7 @@ int ImageClassifier::getAdaptiveCannyThreshold(cv::Mat& img){
     int n = imgPoints.size() * 0.5;
     std::nth_element(imgPoints.begin(), imgPoints.begin()+n, imgPoints.end());
     int ret = imgPoints[n];
-    //std::cout<< "Adaptive Canny threshold : " << ret << std::endl;
-    
+     
     return ret;
 }
 
