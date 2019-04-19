@@ -38,25 +38,25 @@ The purpose of the exercise is to use traditional computer vision to classify st
  - If an octagon is found, classify as a stop sign
  - Else, if a quadrilateral is found, warp the contour to match the dimensions of specific examples for comparison
  - If the computed similarity is within *detection_threshold* of an example, classify the sign as such
- - If no matches are found, return *no_match*
+ - If no matches are found, return *no_match*  
 
-![80 sign](https://github.com/ismith1024/Computer-Vision-Assignment-2/blob/master/Q1-SignClassifier/Result--speedsign12.jpg "80 Sign")
-80 Sign
-![Unknown sign](https://github.com/ismith1024/Computer-Vision-Assignment-2/blob/master/Q1-SignClassifier/Result--speedsign4.jpg "Unknown Sign")
-Sign not in classification examples
-![40 sign](https://github.com/ismith1024/Computer-Vision-Assignment-2/blob/master/Q1-SignClassifier/Result--speedsign5.jpg "40 Sign")
-40 Sign
-![Stop sign](https://github.com/ismith1024/Computer-Vision-Assignment-2/blob/master/Q1-SignClassifier/Result--stop4.jpg "Stop Sign")
-Stop sign
+![80 sign](https://github.com/ismith1024/Computer-Vision-Assignment-2/blob/master/Q1-SignClassifier/Result--speedsign12.jpg "80 Sign")  
+80 Sign  
+![Unknown sign](https://github.com/ismith1024/Computer-Vision-Assignment-2/blob/master/Q1-SignClassifier/Result--speedsign4.jpg "Unknown Sign")  
+Sign not in classification examples  
+![40 sign](https://github.com/ismith1024/Computer-Vision-Assignment-2/blob/master/Q1-SignClassifier/Result--speedsign5.jpg "40 Sign")  
+40 Sign  
+![Stop sign](https://github.com/ismith1024/Computer-Vision-Assignment-2/blob/master/Q1-SignClassifier/Result--stop4.jpg "Stop Sign")  
+Stop sign  
 
 
 ### Part 2:
-The purpose of this exercise is to find Canny edges a file, and then find lines in these edges using the Hough transform.
+The purpose of this exercise is to find Canny edges a file, and then find lines in these edges using the Hough transform.  
 
-![Source](https://github.com/ismith1024/Computer-Vision-Assignment-2/blob/master/Q2-HoughLines/track.jpg "Source")
-Source image
-![Result](https://github.com/ismith1024/Computer-Vision-Assignment-2/blob/master/Q2-HoughLines/Result--track.jpg "Result")
-Result
+![Source](https://github.com/ismith1024/Computer-Vision-Assignment-2/blob/master/Q2-HoughLines/track.jpg "Source")  
+Source image  
+![Result](https://github.com/ismith1024/Computer-Vision-Assignment-2/blob/master/Q2-HoughLines/Result--track.jpg "Result")  
+Result  
 
 ## Files <a name="files"></a>
 
